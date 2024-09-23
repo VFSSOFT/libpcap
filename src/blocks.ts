@@ -59,7 +59,11 @@ export class PcapNG {
         const buf = new Buffer("", 'utf-8');
     }
 
-    private parseSectionHeaderBlock(buf: MyBuf): SectionHeaderBlock {
+    private parseOptions(): Array<Option> {
+        
+    }
+
+    private parseSectionHeaderBlock(): SectionHeaderBlock {
         let shb: SectionHeaderBlock = new SectionHeaderBlock();
         
         const blockType = this.inBuffer.readBytes(4);
@@ -83,7 +87,11 @@ export class PcapNG {
         if (shb.version !== "1.0") {
             throw new Error("Unsupported version: " + shb.version);
         }
-        const sectionLen = this.inBuffer.readUint32();
+        const sectionLen = this.inBuffer.readInt64();
+        if (sectionLen === -1) {
+            // TODO:
+        }
+
 
         return shb;
     }

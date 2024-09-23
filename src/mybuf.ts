@@ -40,7 +40,7 @@ export class MyBuf {
         this.offset += cnt;
         return b;
     }
-    public readUint16() {
+    public readUint16(): number {
         var val = 0;
         if (this.bigEndian) {
             val = this.buf.readUint16BE(this.offset);
@@ -50,7 +50,17 @@ export class MyBuf {
         this.offset += 2;
         return val;
     }
-    public readUint32() {
+    public readInt16(): number {
+        var val = 0;
+        if (this.bigEndian) {
+            val = this.buf.readInt16BE(this.offset);
+        } else {
+            val = this.buf.readInt16LE(this.offset);
+        }
+        this.offset += 2;
+        return val;
+    }
+    public readUint32(): number {
         var val = 0;
         if (this.bigEndian) {
             val = this.buf.readUint32BE(this.offset);
@@ -61,6 +71,16 @@ export class MyBuf {
         return val;
     }
 
+    public readInt64(): number {
+        var val : bigint;
+        if (this.bigEndian) {
+            val = this.buf.readBigInt64BE(this.offset);
+        } else {
+            val = this.buf.readBigInt64LE(this.offset);
+        }
+        this.offset += 8;
+        return Number(val);
+    }
     
 
 }
