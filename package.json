@@ -1,0 +1,24 @@
+{
+  "name": "libpcap",
+  "version": "1.0.0",
+  "description": "This is a library for operating the Wireshark Cature File",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/VFSSOFT/libpcap.git"
+  },
+  "author": "vfssoft",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VFSSOFT/libpcap/issues"
+  },
+  "homepage": "https://github.com/VFSSOFT/libpcap#readme",
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "typescript": "^5.6.2"
+  }
+}
