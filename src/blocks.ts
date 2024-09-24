@@ -14,17 +14,38 @@ export class Option {
     }
 }
 
+class GeneralBlock {
+    type: Buffer; // 4 bytes
+    totalLength: number;
+    body: MyBuf;
+
+    constructor() {
+        this.type = new Buffer("");
+        this.totalLength = 0;
+        this.body = new MyBuf(new Buffer(""));
+    }
+}
 
 export class InterfaceDescriptionBlock {
     private linkType: number;
     private snapLen: number;
     private options: Array<Option>;
+
+    constructor() {
+        this.linkType = 0;
+        this.snapLen = 0;
+        this.options = new Array<Option>();
+    }
 }
 
 export class SimplePacketBlock {
     private originalPacketLength: number;
     private packetData: Buffer;
 
+    constructor() {
+        this.originalPacketLength = 0;
+        this.packetData = new Buffer("");
+    }
 }
 
 export class SectionHeaderBlock {
@@ -32,6 +53,11 @@ export class SectionHeaderBlock {
     version: string;
     options: Array<Option>;
 
+    constructor() {
+        this.bigEndian = true;
+        this.version = "";
+        this.options = new Array<Option>();
+    }
 }
 
 
@@ -46,7 +72,8 @@ export class PcapNG {
 
     public parse() {
         while (this.inBuffer.hasMore()) {
-
+            let sectionHeaderBlock = this.parseSectionHeaderBlock();
+            this.blocks.push(sectionHeaderBlock);
         }
     }
 
@@ -54,44 +81,59 @@ export class PcapNG {
         return this.blocks;
     }
 
-
-    private test() {
-        const buf = new Buffer("", 'utf-8');
+    private parseOptions(buf: MyBuf): Array<Option> {
+        let options = new Array<Option>();
+        return options;
     }
 
-    private parseOptions(): Array<Option> {
+    private parseBlock(): GeneralBlock {
+        let block = new GeneralBlock();
         
+        block.type = this.inBuffer.readBytes(4);
+        block.totalLength = this.inBuffer.readUint32();
+        let body = this.inBuffer.readBytes(block.totalLength - 12);
+        block.body = new MyBuf(body);
+        block.body.setEndian(this.inBuffer.getEndian());
+
+        const trailingTotalLen = this.inBuffer.readUint32();
+        if (trailingTotalLen !== block.totalLength) {
+            throw new Error("Invalid trailing Total Block Length");
+        }
+
+        return block;
+    }
+
+    private parseEndianFromNextSHB() {
+        let pos = this.inBuffer.getOffset();
+        this.inBuffer.seekTo(pos + 8);
+
+        const byteOrderMagicBuf = this.inBuffer.readBytes(4);
+        let bigEndian = Buffer.compare(byteOrderMagicBuf, Buffer.from([0x1A, 0x2B, 0x3C, 0x4D])) === 0;
+        this.inBuffer.setEndian(bigEndian);
+
+        this.inBuffer.seekTo(pos);
     }
 
     private parseSectionHeaderBlock(): SectionHeaderBlock {
-        let shb: SectionHeaderBlock = new SectionHeaderBlock();
+        this.parseEndianFromNextSHB();
         
-        const blockType = this.inBuffer.readBytes(4);
-        if (!Buffer.compare(blockType, Buffer.from("\r\n\r\n"))) {
+        let block = this.parseBlock();
+        if (!Buffer.compare(block.type, Buffer.from("\r\n\r\n"))) {
             throw new Error("Section header block is expected");
         }
-        if (this.inBuffer.available() < 8) {
-            throw new Error("Section header block is too short");
-        }
 
-        this.inBuffer.seekTo(8);
-        const byteOrderMagicBuf = this.inBuffer.readBytes(4);
-        shb.bigEndian = Buffer.compare(byteOrderMagicBuf, Buffer.from([0x1A, 0x2B, 0x3C, 0x4D])) === 0;
-        this.inBuffer.setEndian(shb.bigEndian);
+        let shb: SectionHeaderBlock = new SectionHeaderBlock();
+        shb.bigEndian = this.inBuffer.getEndian();
+        
+        block.body.skip(4); // Byte-Order Magic
 
-        this.inBuffer.seekTo(4);
-        const totalLen = this.inBuffer.readUint32();
-        this.inBuffer.seekTo(12);
-
-        shb.version = String(this.inBuffer.readUint16()) + "." + String(this.inBuffer.readUint16());
+        shb.version = String(block.body.readUint16()) + "." + String(block.body.readUint16());
         if (shb.version !== "1.0") {
             throw new Error("Unsupported version: " + shb.version);
         }
-        const sectionLen = this.inBuffer.readInt64();
-        if (sectionLen === -1) {
-            // TODO:
-        }
+        const sectionLen = block.body.readInt64(); // sectionLen == -1 or > 0
 
+        shb.options = this.parseOptions(block.body);
 
         return shb;
     }

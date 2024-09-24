@@ -35,6 +35,10 @@ export class MyBuf {
         this.offset = cnt;
     }
 
+    public getOffset(): number {
+        return this.offset;
+    }
+
     public readBytes(cnt: number) {
         const b = this.buf.subarray(this.offset, this.offset + cnt);
         this.offset += cnt;
