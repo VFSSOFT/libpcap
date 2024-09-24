@@ -81,8 +81,30 @@ export class PcapNG {
         return this.blocks;
     }
 
+    private paddedTo32Bit(val: number): number {
+        return Math.floor((val + 3) / 4) * 4;
+    }
+
     private parseOptions(buf: MyBuf): Array<Option> {
+        const opt_endofopt = 0;
         let options = new Array<Option>();
+
+        while (buf.hasMore()) {
+            let opt = new Option();
+            opt.type = buf.readUint16();
+            opt.length = buf.readUint16();
+            opt.value = buf.readBytes(opt.length);
+
+            let paddignLen = this.paddedTo32Bit(opt.length) - opt.length;
+            buf.skip(paddignLen);
+
+            if (opt.type === opt_endofopt) {
+                break;
+            }
+
+            options.push(opt);
+        }
+
         return options;
     }
 
@@ -134,6 +156,8 @@ export class PcapNG {
         const sectionLen = block.body.readInt64(); // sectionLen == -1 or > 0
 
         shb.options = this.parseOptions(block.body);
+
+        
 
         return shb;
     }
