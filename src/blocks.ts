@@ -82,13 +82,14 @@ export class EnhancedPacketBlock extends GeneralBlock {
 
 }
 
-export class SimplePacketBlock {
-    private originalPacketLength: number;
-    private packetData: Buffer;
+export class SimplePacketBlock extends GeneralBlock {
+    originalPktLen: number;
+    pktData: Buffer;
 
     constructor() {
-        this.originalPacketLength = 0;
-        this.packetData = new Buffer("");
+        super();
+        this.originalPktLen = 0;
+        this.pktData = new Buffer("");
     }
 }
 
@@ -171,6 +172,15 @@ export class PcapNG {
         return null;
     }
 
+    private curIDB() : InterfaceDescriptionBlock|null {
+        for (let i = this.blocks.length - 1; i >= 0; i--) {
+            if (this.blocks[i] instanceof InterfaceDescriptionBlock) {
+                return this.blocks[i] as InterfaceDescriptionBlock;
+            }
+        }
+        return null;
+    }
+
     private parseBlock(): GeneralBlock {
         const shb = this.curSHB();
 
@@ -201,12 +211,14 @@ export class PcapNG {
             const blockType = this.bytesToInt(block.type, shb!.bigEndian);
             if (blockType === 1) {
                 return this.parseInterfaceDescriptionBlock(block);
+            } else if (blockType === 3) {
+                return this.parseSimplePacketBlock(block);
             } else if (blockType === 5) {
                 return this.parseInterfaceStatisticsBlock(block);
             } else if (blockType === 6) {
                 return this.parseEnhancedPacketBlock(block);
             } else {
-                // TODO: skip it
+                throw new Error("unsupported block type");
             }
         }
 
@@ -287,6 +299,34 @@ export class PcapNG {
         }
 
         return epb;
+    }
+
+    private parseSimplePacketBlock(block: GeneralBlock) : SimplePacketBlock {
+        let spb = new SimplePacketBlock();
+        spb.copyGeneralBlockInfo(block);
+
+        spb.originalPktLen = block.body.readUint32();
+
+        const idb = this.curIDB();
+        if (idb == null) {
+            throw new Error("InterfaceDescriptionBlock is expected");
+        }
+
+        let pktDataLen = 0;
+        if (idb.snapLen > spb.originalPktLen) {
+            pktDataLen = spb.originalPktLen;
+        } else {
+            pktDataLen = idb.snapLen;
+        }
+        spb.pktData = block.body.readBytes(pktDataLen);
+        
+        block.body.readBytes(block.body.available()); // left padding
+
+        if (block.body.hasMore()) {
+            console.warn("more bytes are left unprocessed");
+        }
+
+        return spb;
     }
 
     private parseInterfaceStatisticsBlock(block: GeneralBlock) : InterfaceStatisticsBlock {
