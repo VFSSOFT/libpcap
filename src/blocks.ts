@@ -75,13 +75,9 @@ export class PcapNG {
     private blocks: Array<GeneralBlock>;
     private inBuffer: MyBuf;
 
-    // TODO: remove it, add a function to get current SHB.
-    private curSHB : SectionHeaderBlock | null;
-
     constructor(file: string) {
         this.blocks = new Array<SectionHeaderBlock>();
         this.inBuffer = new MyBuf(fs.readFileSync(file));
-        this.curSHB = null;
     }
 
     public parse() {
@@ -129,14 +125,25 @@ export class PcapNG {
         return options;
     }
 
+    private curSHB(): SectionHeaderBlock|null {
+        for (let i = this.blocks.length - 1; i >= 0; i--) {
+            if (this.blocks[i] instanceof SectionHeaderBlock) {
+                return this.blocks[i] as SectionHeaderBlock;
+            }
+        }
+        return null;
+    }
+
     private parseBlock(): GeneralBlock {
+        const shb = this.curSHB();
+
         let block = new GeneralBlock();
         
         block.type = this.inBuffer.readBytes(4);
         if (Buffer.compare(block.type, Buffer.from("\r\n\r\n"))) {
             this.processEndian();
         } else {
-            if (this.curSHB == null) {
+            if (shb == null) {
                 throw new Error("Section Header Block is expected");
             }
         }
@@ -152,11 +159,9 @@ export class PcapNG {
         }
 
         if (Buffer.compare(block.type, Buffer.from("\r\n\r\n"))) {
-            const shb = this.parseSectionHeaderBlock(block);
-            this.curSHB = shb;
-            return shb;
+            return this.parseSectionHeaderBlock(block);
         } else {
-            const blockType = this.bytesToInt(block.type, this.curSHB!.bigEndian);
+            const blockType = this.bytesToInt(block.type, shb!.bigEndian);
             if (blockType === 1) {
                 return this.parseInterfaceDescriptionBlock(block);
             } else {
