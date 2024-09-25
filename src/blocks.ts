@@ -140,7 +140,7 @@ export class PcapNG {
         let block = new GeneralBlock();
         
         block.type = this.inBuffer.readBytes(4);
-        if (Buffer.compare(block.type, Buffer.from("\r\n\r\n"))) {
+        if (Buffer.compare(block.type, Buffer.from("\n\r\r\n")) === 0) {
             this.processEndian();
         } else {
             if (shb == null) {
@@ -158,7 +158,7 @@ export class PcapNG {
             throw new Error("Invalid trailing Total Block Length");
         }
 
-        if (Buffer.compare(block.type, Buffer.from("\r\n\r\n"))) {
+        if (Buffer.compare(block.type, Buffer.from("\n\r\r\n")) === 0) {
             return this.parseSectionHeaderBlock(block);
         } else {
             const blockType = this.bytesToInt(block.type, shb!.bigEndian);
