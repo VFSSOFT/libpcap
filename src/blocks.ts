@@ -93,6 +93,33 @@ export class SimplePacketBlock extends GeneralBlock {
     }
 }
 
+export class NameResolutionRecord {
+    type: number;
+    length: number;
+    value: Buffer;
+
+    constructor() {
+        this.type = 0;
+        this.length = 0;
+        this.value = Buffer.alloc(0);
+    }
+}
+
+export class NameResolutionBlock extends GeneralBlock {
+    records: Array<NameResolutionRecord>;
+    options: Array<Option>;
+
+    constructor() {
+        super();
+        this.records = new Array<NameResolutionRecord>();
+        this.options = new Array<Option>();
+    }
+}
+
+export class CustomBlock extends GeneralBlock {
+
+}
+
 export class SectionHeaderBlock extends GeneralBlock {
     bigEndian: boolean;
     version: string;
@@ -213,10 +240,16 @@ export class PcapNG {
                 return this.parseInterfaceDescriptionBlock(block);
             } else if (blockType === 3) {
                 return this.parseSimplePacketBlock(block);
+            } else if (blockType === 4) {
+                return this.parseNameResolutionBlock(block);
             } else if (blockType === 5) {
                 return this.parseInterfaceStatisticsBlock(block);
             } else if (blockType === 6) {
                 return this.parseEnhancedPacketBlock(block);
+            } else if (blockType === 2989) {
+                return this.parseCustomBlock(block);
+            } else if (blockType === 1073744813) {
+                return this.parseCustomBlock(block);
             } else {
                 throw new Error("unsupported block type");
             }
@@ -329,6 +362,36 @@ export class PcapNG {
         return spb;
     }
 
+    private parseNameResolutionBlock(block: GeneralBlock) : NameResolutionBlock {
+        let nrb = new NameResolutionBlock();
+        nrb.copyGeneralBlockInfo(block);
+
+        while (true) {
+            const nrc = new NameResolutionRecord();
+            nrc.type = block.body.readUint16();
+            nrc.length = block.body.readUint16();
+            nrc.value = block.body.readBytes(nrc.length);
+
+            const paddingLen = this.paddedTo32Bit(nrc.length) - nrc.length;
+            block.body.readBytes(paddingLen);
+
+            if (nrc.type === 0) {
+                // nrb_record_end
+                break;
+            }
+
+            nrb.records.push(nrc);
+        }
+       
+        nrb.options = this.parseOptions(block.body);
+
+        if (block.body.hasMore()) {
+            console.warn("more bytes are left unprocessed");
+        }
+
+        return nrb;
+    }
+
     private parseInterfaceStatisticsBlock(block: GeneralBlock) : InterfaceStatisticsBlock {
         let isb = new InterfaceStatisticsBlock();
         isb.copyGeneralBlockInfo(block);
@@ -345,5 +408,11 @@ export class PcapNG {
         }
 
         return isb;
+    }
+
+    private parseCustomBlock(block: GeneralBlock) : CustomBlock {
+        let cb = new CustomBlock();
+        cb.copyGeneralBlockInfo(block);
+        return cb;
     }
 }
