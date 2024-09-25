@@ -45,6 +45,43 @@ export class InterfaceDescriptionBlock extends GeneralBlock {
     }
 }
 
+export class InterfaceStatisticsBlock extends GeneralBlock {
+    interfaceID: number;
+    timestampUp: number;
+    timestampLo: number;
+    options: Array<Option>
+
+    constructor() {
+        super();
+        this.interfaceID = 0;
+        this.timestampUp = 0;
+        this.timestampLo = 0;
+        this.options = new Array<Option>();
+    }
+}
+
+export class EnhancedPacketBlock extends GeneralBlock {
+    interfaceID: number;
+    timestampUp: number;
+    timestampLo: number;
+    capturedPktLen: number;
+    originalPktLen: number;
+    pktData: Buffer;
+    options: Array<Option>;
+
+    constructor() {
+        super();
+        this.interfaceID = 0;
+        this.timestampUp = 0;
+        this.timestampLo = 0;
+        this.capturedPktLen = 0;
+        this.originalPktLen = 0;
+        this.pktData = new Buffer("");
+        this.options = new Array<Option>();
+    }
+
+}
+
 export class SimplePacketBlock {
     private originalPacketLength: number;
     private packetData: Buffer;
@@ -164,6 +201,10 @@ export class PcapNG {
             const blockType = this.bytesToInt(block.type, shb!.bigEndian);
             if (blockType === 1) {
                 return this.parseInterfaceDescriptionBlock(block);
+            } else if (blockType === 5) {
+                return this.parseInterfaceStatisticsBlock(block);
+            } else if (blockType === 6) {
+                return this.parseEnhancedPacketBlock(block);
             } else {
                 // TODO: skip it
             }
@@ -221,5 +262,48 @@ export class PcapNG {
         }
 
         return idb;
+    }
+
+    private parseEnhancedPacketBlock(block: GeneralBlock) : EnhancedPacketBlock {
+        let epb = new EnhancedPacketBlock();
+        epb.copyGeneralBlockInfo(block);
+
+        epb.interfaceID = block.body.readUint32();
+
+        epb.timestampUp = block.body.readUint32();
+        epb.timestampLo = block.body.readUint32();
+
+        epb.capturedPktLen = block.body.readUint32();
+        epb.originalPktLen = block.body.readUint32();
+        epb.pktData = block.body.readBytes(epb.capturedPktLen);
+
+        let paddingLen = this.paddedTo32Bit(epb.capturedPktLen) - epb.capturedPktLen;
+        block.body.readBytes(paddingLen);
+
+        epb.options = this.parseOptions(block.body);
+
+        if (block.body.hasMore()) {
+            console.warn("more bytes are left unprocessed");
+        }
+
+        return epb;
+    }
+
+    private parseInterfaceStatisticsBlock(block: GeneralBlock) : InterfaceStatisticsBlock {
+        let isb = new InterfaceStatisticsBlock();
+        isb.copyGeneralBlockInfo(block);
+
+        isb.interfaceID = block.body.readUint32();
+
+        isb.timestampUp = block.body.readUint32();
+        isb.timestampLo = block.body.readUint32();
+
+        isb.options = this.parseOptions(block.body);
+
+        if (block.body.hasMore()) {
+            console.warn("more bytes are left unprocessed");
+        }
+
+        return isb;
     }
 }
