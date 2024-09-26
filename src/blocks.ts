@@ -1,6 +1,50 @@
 import fs from 'fs';
 import { MyBuf } from './mybuf';
 
+// common
+const OPT_END_OF_OPT      = 0;
+const OPT_COMMENT         = 1;
+
+const OPT_SHB_HARDWARE    = 2;
+const OPT_SHB_OS          = 3;
+const OPT_SHB_USERAPPL    = 4;
+
+const OPT_IF_DESCRIPTION  = 3;
+const OPT_IF_IPV4_ADDR    = 4;
+const OPT_IF_IPV6_ADDR    = 5;
+const OPT_IF_MAC_ADDR     = 6;
+const OPT_IF_EUI_ADDR     = 7;
+const OPT_IF_SPEED        = 8;
+const OPT_IF_TS_RESOL     = 9;
+const OPT_IF_TZONE        = 10;
+const OPT_IF_FILTER       = 11;
+const OPT_IF_OS           = 12;
+const OPT_IF_FCSLEN       = 13;
+const OPT_IF_TSOFFSET     = 14;
+const OPT_IF_HARDWARE     = 15;
+const OPT_IF_TXSPEED      = 16;
+const OPT_IF_RXSPEED      = 17;
+const OPT_IF_IANA_TZNAME  = 18;
+
+const OPT_EPB_FLAGS       = 2;
+const OPT_EPB_HASH        = 3;
+const OPT_EPB_DROP_COUNT  = 4;
+const OPT_EPB_PACKET_ID   = 5;
+const OPT_EPB_QUEUE       = 6;
+const OPT_EPB_VERDICT     = 7;
+const OPT_EPB_PID_TID     = 8;
+
+const OPT_NS_DNS_NAME     = 2;
+const OPT_DNS_IP4_ADDR    = 3;
+const OPT_DNS_IP6_ADDR    = 4;
+
+const OPT_ISB_START_TIME    = 2;
+const OPT_ISB_END_TIME      = 3;
+const OPT_ISB_IF_RECV       = 4;
+const OPT_ISB_IF_DROP       = 5;
+const OPT_ISB_FILTER_ACCEPT = 6;
+const OPT_ISB_OS_DROP       = 7;
+const OPT_ISB_USR_DELIV     = 8;
 
 export class Option {
     type: number;
@@ -15,20 +59,26 @@ export class Option {
 }
 
 export class GeneralBlock {
+    startOffset: number; // start offset relative to the origin input file
     type: Buffer; // 4 bytes
     totalLength: number;
     body: MyBuf;
 
+    comments: Array<string>; // parsed from options if available
+
     constructor() {
+        this.startOffset = 0;
         this.type = Buffer.alloc(0);
         this.totalLength = 0;
         this.body = new MyBuf(Buffer.alloc(0));
+        this.comments = new Array<string>();
     }
 
     public copyGeneralBlockInfo(b: GeneralBlock) {
         this.type = b.type;
         this.totalLength = b.totalLength;
         this.body = b.body;
+        this.comments = b.comments;
     }
 }
 
@@ -213,6 +263,7 @@ export class PcapNG {
 
         let block = new GeneralBlock();
         
+        block.startOffset = this.inBuffer.getOffset();
         block.type = this.inBuffer.readBytes(4);
         if (Buffer.compare(block.type, Buffer.from("\n\r\r\n")) === 0) {
             this.processEndian();
@@ -283,6 +334,7 @@ export class PcapNG {
         shb.sectionLength = block.body.readInt64(); // sectionLen == -1 or > 0
 
         shb.options = this.parseOptions(block.body);
+        shb.comments = this.parseComments(shb.options);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -301,6 +353,7 @@ export class PcapNG {
         idb.snapLen = block.body.readUint32();
 
         idb.options = this.parseOptions(block.body);
+        idb.comments = this.parseComments(idb.options);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -326,6 +379,7 @@ export class PcapNG {
         block.body.readBytes(paddingLen);
 
         epb.options = this.parseOptions(block.body);
+        epb.comments = this.parseComments(epb.options);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -384,6 +438,7 @@ export class PcapNG {
         }
        
         nrb.options = this.parseOptions(block.body);
+        nrb.comments = this.parseComments(nrb.options);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -402,6 +457,7 @@ export class PcapNG {
         isb.timestampLo = block.body.readUint32();
 
         isb.options = this.parseOptions(block.body);
+        isb.comments = this.parseComments(isb.options);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -414,5 +470,18 @@ export class PcapNG {
         let cb = new CustomBlock();
         cb.copyGeneralBlockInfo(block);
         return cb;
+    }
+
+
+
+
+    private parseComments(opts: Array<Option>): Array<string> {
+        let comments = new Array<string>();
+        for (const opt of opts) {
+            if (opt.type == OPT_COMMENT) {
+                comments.push(opt.value.toString('utf-8'));
+            }
+        }
+        return comments;
     }
 }
