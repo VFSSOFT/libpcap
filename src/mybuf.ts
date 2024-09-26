@@ -39,10 +39,15 @@ export class MyBuf {
         return this.offset;
     }
 
-    public readBytes(cnt: number) {
+    public readBytes(cnt: number): Buffer {
         const b = this.buf.subarray(this.offset, this.offset + cnt);
         this.offset += cnt;
         return b;
+    }
+    public readUint8(): number {
+        var val = this.buf.readUint8();
+        this.offset += 1;
+        return val;
     }
     public readUint16(): number {
         var val = 0;

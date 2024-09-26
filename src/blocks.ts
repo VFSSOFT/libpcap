@@ -9,6 +9,7 @@ const OPT_SHB_HARDWARE    = 2;
 const OPT_SHB_OS          = 3;
 const OPT_SHB_USERAPPL    = 4;
 
+const OPT_IF_NAME         = 2;
 const OPT_IF_DESCRIPTION  = 3;
 const OPT_IF_IPV4_ADDR    = 4;
 const OPT_IF_IPV6_ADDR    = 5;
@@ -87,11 +88,51 @@ export class InterfaceDescriptionBlock extends GeneralBlock {
     snapLen: number;
     options: Array<Option>;
 
+    // parsed from options
+    name: string;
+    description: string;
+    ipv4Addrs: Array<string>;
+    ipv4Netmasks: Array<string>;
+    ipv6Addrs: Array<string>;
+    ipv6AddrPrefix: Array<number>;
+    macAddr: Buffer; // 48bit
+    euiAddr: Buffer; // 64bit
+    speed: number; // bits per second
+    tsresol: number; // TODO:
+    tzone: Buffer; // 4
+    //filter: any;
+    os: string;
+    fcsLen: number; /// Frame Check Sequence
+    tsOffset: number;
+    hardware: string;
+    txSpeed: number; // bits per second
+    rxSpeed: number; // bit per second
+    tzname: string; // timezone name
+
     constructor() {
         super();
         this.linkType = 0;
         this.snapLen = 0;
         this.options = new Array<Option>();
+
+        this.name = "";
+        this.description = "";
+        this.ipv4Addrs = new Array<string>();
+        this.ipv4Netmasks = new Array<string>();
+        this.ipv6Addrs = new Array<string>();
+        this.ipv6AddrPrefix = new Array<number>();
+        this.macAddr = Buffer.alloc(0);
+        this.euiAddr = Buffer.alloc(0);
+        this.speed = 0;
+        this.tsresol = 0;
+        this.tzone = Buffer.alloc(0);
+        this.os = "";
+        this.fcsLen = 0;
+        this.tsOffset = 0;
+        this.hardware = "";
+        this.txSpeed = 0;
+        this.rxSpeed = 0;
+        this.tzname = "";
     }
 }
 
@@ -366,6 +407,43 @@ export class PcapNG {
 
         idb.options = this.parseOptions(block.body);
         idb.comments = this.parseComments(idb.options);
+        idb.name = this.getOptStringValue(idb.options, OPT_IF_NAME);
+        idb.description = this.getOptStringValue(idb.options, OPT_IF_DESCRIPTION);
+
+        let opt = this.findOption(idb.options, OPT_IF_IPV4_ADDR);
+        if (opt !== null) {
+            let buf = new MyBuf(opt.value);
+            while (buf.hasMore()) {
+                const addr = Array.from(buf.readBytes(4)).map(b => b.toString()).join('.');
+                const mask = Array.from(buf.readBytes(4)).map(b => b.toString()).join('.');
+                idb.ipv4Addrs.push(addr);
+                idb.ipv4Netmasks.push(mask);
+            }
+        }
+
+        opt = this.findOption(idb.options, OPT_IF_IPV6_ADDR);
+        if (opt !== null) {
+            let buf = new MyBuf(opt.value);
+            while (buf.hasMore()) {
+                const addr = Array.from(buf.readBytes(16)).map(b => b.toString()).join('.');
+                const prefix = buf.readUint8();
+                idb.ipv6Addrs.push(addr);
+                idb.ipv6AddrPrefix.push(prefix);
+            }
+        }
+
+        idb.macAddr = this.getOptBytesValue(idb.options, OPT_IF_MAC_ADDR);
+        idb.euiAddr = this.getOptBytesValue(idb.options, OPT_IF_EUI_ADDR);
+        idb.speed = this.getOptUint64Value(idb.options, OPT_IF_SPEED, block.body.getEndian());
+        idb.tsresol = this.getOptUint8Value(idb.options, OPT_IF_TS_RESOL);
+        idb.tzone = this.getOptBytesValue(idb.options, OPT_IF_TZONE);
+        idb.os = this.getOptStringValue(idb.options, OPT_IF_OS);
+        idb.fcsLen = this.getOptUint8Value(idb.options, OPT_IF_FCSLEN);
+        idb.tsOffset = this.getOptUint64Value(idb.options, OPT_IF_TSOFFSET, block.body.getEndian());
+        idb.hardware = this.getOptStringValue(idb.options, OPT_IF_HARDWARE);
+        idb.txSpeed = this.getOptUint64Value(idb.options, OPT_IF_TXSPEED, block.body.getEndian());
+        idb.rxSpeed = this.getOptUint64Value(idb.options, OPT_IF_RXSPEED, block.body.getEndian());
+        idb.tzname = this.getOptStringValue(idb.options, OPT_IF_IANA_TZNAME);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -510,6 +588,34 @@ export class PcapNG {
             return "";
         } else {
             return opt.value.toString('utf-8');
+        }
+    }
+    private getOptBytesValue(opts: Array<Option>, optType: number): Buffer {
+        const opt = this.findOption(opts, optType);
+        if (opt === null) {
+            return Buffer.alloc(0);
+        } else {
+            return opt.value;
+        }
+    }
+    private getOptUint8Value(opts: Array<Option>, optType: number): number {
+        const opt = this.findOption(opts, optType);
+        if (opt === null) {
+            return 0;
+        } else {
+            return opt.value.readUint8();
+        }
+    }
+    private getOptUint64Value(opts: Array<Option>, optType: number, bigEndian: boolean): number {
+        const opt = this.findOption(opts, optType);
+        if (opt === null) {
+            return 0;
+        } else {
+            if (bigEndian) {
+                return Number(opt.value.readBigUint64BE());
+            } else {
+                return Number(opt.value.readBigUint64LE());
+            }
         }
     }
 }
