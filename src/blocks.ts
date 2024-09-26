@@ -10,7 +10,7 @@ export class Option {
     constructor() {
         this.type = 0;
         this.length = 0;
-        this.value = new Buffer("", 'utf8');
+        this.value = Buffer.alloc(0);
     }
 }
 
@@ -20,9 +20,9 @@ export class GeneralBlock {
     body: MyBuf;
 
     constructor() {
-        this.type = new Buffer("");
+        this.type = Buffer.alloc(0);
         this.totalLength = 0;
-        this.body = new MyBuf(new Buffer(""));
+        this.body = new MyBuf(Buffer.alloc(0));
     }
 
     public copyGeneralBlockInfo(b: GeneralBlock) {
@@ -76,7 +76,7 @@ export class EnhancedPacketBlock extends GeneralBlock {
         this.timestampLo = 0;
         this.capturedPktLen = 0;
         this.originalPktLen = 0;
-        this.pktData = new Buffer("");
+        this.pktData = Buffer.alloc(0);
         this.options = new Array<Option>();
     }
 
@@ -89,7 +89,7 @@ export class SimplePacketBlock extends GeneralBlock {
     constructor() {
         super();
         this.originalPktLen = 0;
-        this.pktData = new Buffer("");
+        this.pktData = Buffer.alloc(0);
     }
 }
 
