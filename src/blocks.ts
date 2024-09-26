@@ -175,6 +175,11 @@ export class SectionHeaderBlock extends GeneralBlock {
     version: string;
     options: Array<Option>;
     sectionLength: number;
+    
+    // parsed from options
+    hardware: string;
+    os: string;
+    userappl: string;
 
     constructor() {
         super();
@@ -182,6 +187,10 @@ export class SectionHeaderBlock extends GeneralBlock {
         this.version = "";
         this.options = new Array<Option>();
         this.sectionLength = -1;
+
+        this.hardware = "";
+        this.os = "";
+        this.userappl = "";
     }
 }
 
@@ -335,6 +344,9 @@ export class PcapNG {
 
         shb.options = this.parseOptions(block.body);
         shb.comments = this.parseComments(shb.options);
+        shb.hardware = this.getOptStringValue(shb.options, OPT_SHB_HARDWARE);
+        shb.os = this.getOptStringValue(shb.options, OPT_SHB_OS);
+        shb.userappl = this.getOptStringValue(shb.options, OPT_SHB_USERAPPL);
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -483,5 +495,21 @@ export class PcapNG {
             }
         }
         return comments;
+    }
+    private findOption(opts: Array<Option>, optType: number): Option|null {
+        for (const opt of opts) {
+            if (opt.type == optType) {
+                return opt;
+            }
+        }
+        return null;
+    }
+    private getOptStringValue(opts: Array<Option>, optType: number): string {
+        const opt = this.findOption(opts, optType);
+        if (opt === null) {
+            return "";
+        } else {
+            return opt.value.toString('utf-8');
+        }
     }
 }
