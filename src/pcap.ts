@@ -19,14 +19,29 @@ export class PacketAddrs {
     }
 }
 
-export class Packet {
-    static defaultAddr = new PacketAddrs();
+export class NetInterface {
+    private idb: InterfaceDescriptionBlock;
+    
+    name: string
+    linkType: number;
+    snapLen: number;
 
+    constructor(idb: InterfaceDescriptionBlock) {
+        this.idb = idb;
+        this.name = idb.name;
+        this.linkType = idb.linkType;
+        this.snapLen = idb.snapLen;
+    }
+}
+
+export class Packet {
+    netInterface: NetInterface;
     timestamp: number;
     originalLength: number;
     data: Buffer;
 
-    constructor() {
+    constructor(interf: NetInterface) {
+        this.netInterface = interf;
         this.timestamp = 0;
         this.originalLength = 0;
         this.data = Buffer.alloc(0);
@@ -36,28 +51,29 @@ export class Packet {
 // Logical Blocks container
 export class Section {
     blocks: Array<GeneralBlock>; // All basic blocks belong to this section.
+    interfaces: Array<NetInterface>;
     packets: Array<Packet>;
 
     constructor() {
         this.blocks = new Array<GeneralBlock>();
+        this.interfaces = new Array<NetInterface>();
         this.packets = new Array<Packet>();
     }
 }
 
 export class Pcap {
     private blocks: Array<GeneralBlock>;
-    private packets: Array<Packet>;
+    private sections: Array<Section>;
 
     constructor() {
         this.blocks = new Array<GeneralBlock>();
-        this.packets = new Array<Packet>();
+        this.sections = new Array<Section>();
     }
 
-    public parse(file: string): Array<Packet> {
+    public parse(file: string): Array<Section> {
         this.blocks = this.parseBlocks(file);
-        const sections = this.buildSections(this.blocks);
-        //this.parsePackets();
-        return this.packets;
+        this.sections = this.buildSections(this.blocks);
+        return this.sections;
     }
 
     private parseBlocks(file: string): Array<GeneralBlock> {
@@ -81,23 +97,30 @@ export class Pcap {
 
         return sections;
     }
+    private analyseInterfaceDescriptionBlock(sec: Section, idb: InterfaceDescriptionBlock): NetInterface {
+        return new NetInterface(idb);
+    }
     private analyseEnhancedPacketBlock(sec: Section, epb: EnhancedPacketBlock): Packet {
-        let pkt = new Packet();
+        const netif = sec.interfaces[epb.interfaceID];
+        let pkt = new Packet(netif);
         pkt.originalLength = epb.originalPktLen;
-        pkt.data = epb.body.readBytes(epb.body.available());
+        pkt.data = epb.pktData;
         return pkt;
     }
     private analyseSimplePacketBlock(sec: Section, spb: SimplePacketBlock): Packet {
-        let pkt = new Packet();
-        pkt.data = spb.body.readBytes(spb.body.available());
+        const netif = sec.interfaces[0];
+        let pkt = new Packet(netif);
+        pkt.originalLength = spb.pktData.length;
+        pkt.data = spb.pktData;
         return pkt;
     }
     private analyseSection(sec: Section) {
-        // TODO: InterfaceDecriptionBlocks
-
         for (let i = 0; i < sec.blocks.length; i++) {
             const b = sec.blocks[i];
-            if (b instanceof EnhancedPacketBlock) {
+            if (b instanceof InterfaceDescriptionBlock) {
+                let netif = this.analyseInterfaceDescriptionBlock(sec, b as InterfaceDescriptionBlock);
+                sec.interfaces.push(netif);
+            } else if (b instanceof EnhancedPacketBlock) {
                 let pkt = this.analyseEnhancedPacketBlock(sec, b as EnhancedPacketBlock);
                 sec.packets.push(pkt);
             } else if (b instanceof SimplePacketBlock) {
