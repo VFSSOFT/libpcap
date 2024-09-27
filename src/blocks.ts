@@ -47,6 +47,12 @@ const OPT_ISB_FILTER_ACCEPT = 6;
 const OPT_ISB_OS_DROP       = 7;
 const OPT_ISB_USR_DELIV     = 8;
 
+
+const NRB_RECORD_IPV4       = 1;
+const NRB_RECORD_IPV6       = 2;
+const NRB_RECORD_EUI48      = 3;
+const NRB_RECORD_EUI64      = 4;
+
 export class Option {
     type: number;
     length: number;
@@ -142,12 +148,29 @@ export class InterfaceStatisticsBlock extends GeneralBlock {
     timestampLo: number;
     options: Array<Option>
 
+    // parsed from options
+    startTime: number;
+    endTime: number;
+    ifRecv: number;
+    ifDrop: number;
+    filterAccept: number;
+    osDrop: number;
+    userDeliv: number;
+
     constructor() {
         super();
         this.interfaceID = 0;
         this.timestampUp = 0;
         this.timestampLo = 0;
         this.options = new Array<Option>();
+
+        this.startTime = 0;
+        this.endTime = 0;
+        this.ifRecv = 0;
+        this.ifDrop = 0;
+        this.filterAccept = 0;
+        this.osDrop = 0;
+        this.userDeliv = 0;
     }
 }
 
@@ -160,6 +183,16 @@ export class EnhancedPacketBlock extends GeneralBlock {
     pktData: Buffer;
     options: Array<Option>;
 
+    // parsed from optoins
+    flags: number; // 4
+    // hash
+    dropCount: number; 
+    packetId: number;
+    queue: number;
+    // verdict
+    processId: number;
+    threadId: number;
+
     constructor() {
         super();
         this.interfaceID = 0;
@@ -169,6 +202,13 @@ export class EnhancedPacketBlock extends GeneralBlock {
         this.originalPktLen = 0;
         this.pktData = Buffer.alloc(0);
         this.options = new Array<Option>();
+
+        this.flags = 0;
+        this.dropCount = 0;
+        this.packetId = 0;
+        this.queue = 0;
+        this.processId = 0;
+        this.threadId = 0;
     }
 
 }
@@ -200,10 +240,19 @@ export class NameResolutionBlock extends GeneralBlock {
     records: Array<NameResolutionRecord>;
     options: Array<Option>;
 
+    // parsed from options
+    dnsname: string;
+    dnsIP4Addr: string;
+    dnsIP6Addr: string;
+
     constructor() {
         super();
         this.records = new Array<NameResolutionRecord>();
         this.options = new Array<Option>();
+
+        this.dnsname = "";
+        this.dnsIP4Addr = "";
+        this.dnsIP6Addr = "";
     }
 }
 
@@ -470,6 +519,21 @@ export class PcapNG {
 
         epb.options = this.parseOptions(block.body);
         epb.comments = this.parseComments(epb.options);
+        epb.flags = this.getOptUint32Value(epb.options, OPT_EPB_FLAGS, block.body.getEndian());
+        epb.dropCount = this.getOptUint64Value(epb.options, OPT_EPB_DROP_COUNT, block.body.getEndian());
+        epb.packetId = this.getOptUint64Value(epb.options, OPT_EPB_PACKET_ID, block.body.getEndian());
+        epb.queue = this.getOptUint32Value(epb.options, OPT_EPB_QUEUE, block.body.getEndian());
+        
+        let opt = this.findOption(epb.options, OPT_EPB_PID_TID);
+        if (opt !== null) {
+            if (block.body.getEndian()) {
+                epb.processId = opt.value.readUint32BE();
+                epb.threadId = opt.value.readUint32BE(4);
+            } else {
+                epb.processId = opt.value.readUint32LE();
+                epb.threadId = opt.value.readUint32LE(4);
+            }
+        }
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -529,6 +593,15 @@ export class PcapNG {
        
         nrb.options = this.parseOptions(block.body);
         nrb.comments = this.parseComments(nrb.options);
+        nrb.dnsname = this.getOptStringValue(nrb.options, OPT_NS_DNS_NAME);
+        let addrBuf =  this.getOptBytesValue(nrb.options, OPT_IF_IPV4_ADDR);
+        if (addrBuf.length > 0) {
+            nrb.dnsIP4Addr = Array.from(addrBuf).map(b => b.toString()).join('.');
+        }
+        addrBuf =  this.getOptBytesValue(nrb.options, OPT_IF_IPV6_ADDR);
+        if (addrBuf.length > 0) {
+            nrb.dnsIP6Addr = Array.from(addrBuf).map(b => b.toString()).join('.');
+        }
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -548,6 +621,13 @@ export class PcapNG {
 
         isb.options = this.parseOptions(block.body);
         isb.comments = this.parseComments(isb.options);
+        isb.startTime = this.getOptUint64Value(isb.options, OPT_ISB_START_TIME, block.body.getEndian());
+        isb.endTime = this.getOptUint64Value(isb.options, OPT_ISB_END_TIME, block.body.getEndian());
+        isb.ifRecv = this.getOptUint64Value(isb.options, OPT_ISB_IF_RECV, block.body.getEndian());
+        isb.ifDrop = this.getOptUint64Value(isb.options, OPT_ISB_IF_DROP, block.body.getEndian());
+        isb.filterAccept = this.getOptUint64Value(isb.options, OPT_ISB_FILTER_ACCEPT, block.body.getEndian());
+        isb.osDrop = this.getOptUint64Value(isb.options, OPT_ISB_OS_DROP, block.body.getEndian());
+        isb.userDeliv = this.getOptUint64Value(isb.options, OPT_ISB_USR_DELIV, block.body.getEndian());
 
         if (block.body.hasMore()) {
             console.warn("more bytes are left unprocessed");
@@ -604,6 +684,18 @@ export class PcapNG {
             return 0;
         } else {
             return opt.value.readUint8();
+        }
+    }
+    private getOptUint32Value(opts: Array<Option>, optType: number, bigEndian: boolean): number {
+        const opt = this.findOption(opts, optType);
+        if (opt === null) {
+            return 0;
+        } else {
+            if (bigEndian) {
+                return opt.value.readUint32BE();
+            } else {
+                return opt.value.readUint32LE();
+            }
         }
     }
     private getOptUint64Value(opts: Array<Option>, optType: number, bigEndian: boolean): number {
