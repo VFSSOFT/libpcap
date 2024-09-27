@@ -1,6 +1,5 @@
 import path from 'path';
 import { CustomBlock, EnhancedPacketBlock, InterfaceDescriptionBlock, InterfaceStatisticsBlock, NameResolutionBlock, PcapNG, SectionHeaderBlock, SimplePacketBlock } from '../blocks';
-import exp from 'constants';
 
 function getTestFile(name: string): string {
     return path.join(__dirname, '__fixtures__', name);
