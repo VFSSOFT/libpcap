@@ -1,4 +1,5 @@
 import { EnhancedPacketBlock, GeneralBlock, InterfaceDescriptionBlock, InterfaceStatisticsBlock, NameResolutionBlock, PcapNG, SectionHeaderBlock, SimplePacketBlock } from "./blocks";
+import { NetLayerStack } from "./netlayers/netlayerstack";
 
 
 export enum Protocol {
@@ -40,11 +41,15 @@ export class Packet {
     originalLength: number;
     data: Buffer;
 
+    layers: NetLayerStack;
+
     constructor(interf: NetInterface) {
         this.netInterface = interf;
         this.timestamp = 0;
         this.originalLength = 0;
         this.data = Buffer.alloc(0);
+
+        this.layers = new NetLayerStack();
     }
 }
 
@@ -105,6 +110,11 @@ export class Pcap {
         let pkt = new Packet(netif);
         pkt.originalLength = epb.originalPktLen;
         pkt.data = epb.pktData;
+
+        if (pkt.netInterface.linkType == 1) { // LINKTYPE_ETHERNET
+            pkt.layers = NetLayerStack.parse(pkt.data);
+        }
+
         return pkt;
     }
     private analyseSimplePacketBlock(sec: Section, spb: SimplePacketBlock): Packet {
