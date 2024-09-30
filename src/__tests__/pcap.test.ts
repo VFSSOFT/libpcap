@@ -146,4 +146,14 @@ describe("Pcap", () => {
         const filePath = getTestFile('pcapng-test-generator/le/test202.pcapng');
 
     });
+
+    test("TestICMPIPv6", () => {
+        const filePath = getTestFile('test_icmp_ipv6.pcapng');
+        let p = new Pcap();
+        const sections = p.parse(filePath);
+
+        expect(sections.length).toBe(1);
+        expect(sections[0].packets.length).toBe(5);
+    });
+
 });

@@ -7,7 +7,7 @@ export class EthernetII extends NetLayer {
     macDst: Buffer; // 6
     typeLen: number; // 2
     payload: Buffer;
-    crc: Buffer; // 4
+    //crc: Buffer; // 4
 
     constructor() {
         super("Ethernet II");
@@ -15,7 +15,7 @@ export class EthernetII extends NetLayer {
         this.macDst = Buffer.alloc(0);
         this.typeLen = 0;
         this.payload = Buffer.alloc(0);
-        this.crc = Buffer.alloc(0);
+        //this.crc = Buffer.alloc(0);
     }
 
     public parse(data: Buffer) {
@@ -24,10 +24,12 @@ export class EthernetII extends NetLayer {
         this.macDst = buf.readBytes(6);
         this.typeLen = buf.readUint16();
         
-        const payloadLen = buf.available() - 18;
-        this.payload = buf.readBytes(payloadLen);
+        //const payloadLen = buf.available() - 18;
+        //this.payload = buf.readBytes(payloadLen);
 
-        this.crc = buf.readBytes(4);
+        //this.crc = buf.readBytes(4);
+
+        this.payload = buf.readBytes(buf.available());
     }
 
     public isTypeOrLength(): boolean {
