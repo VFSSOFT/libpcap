@@ -45,7 +45,7 @@ export class MyBuf {
         return b;
     }
     public readUint8(): number {
-        var val = this.buf.readUint8();
+        var val = this.buf.readUint8(this.offset);
         this.offset += 1;
         return val;
     }
