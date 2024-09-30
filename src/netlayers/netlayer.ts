@@ -35,3 +35,26 @@ export class IPLayer extends NetLayer {
         return false;
     }
 }
+
+// base classes for TCP and UDP
+export class TransLayer extends NetLayer {
+    constructor(name: string) {
+        super(name);
+    }
+
+    public isUDP(): boolean {
+        return false;
+    }
+    public isTCP(): boolean {
+        return false;
+    }
+    public getSrcPort(): number {
+        return 0;
+    }
+    public getDstPort(): number {
+        return 0;
+    }
+    public getPayload(): Buffer {
+        return Buffer.alloc(0);
+    }
+}

@@ -1,7 +1,9 @@
 import { EthernetII } from "./ethernetii";
 import { IPv4 } from "./ipv4";
 import { IPv6 } from "./ipv6";
-import { IPLayer, NetLayer } from "./netlayer";
+import { IPLayer, NetLayer, TransLayer } from "./netlayer";
+import { TCP } from "./tcp";
+import { UDP } from "./udp";
 
 export class NetLayerStack {
     layers: Array<NetLayer>;
@@ -18,6 +20,8 @@ export class NetLayerStack {
         s.layers.push(eth);
 
         let ip : IPLayer;
+        let trans : TransLayer;
+        
         if (eth.isIPv4()) {
             const ipv4 = new IPv4();
             ipv4.parse(eth.payload);
@@ -31,13 +35,20 @@ export class NetLayerStack {
         }
         s.layers.push(ip);
 
+
         if (ip.isUdpPayload()) {
-
+            const udp = new UDP();
+            udp.parse(ip.getPayload());
+            trans = udp;
         } else if (ip.isTcpPayload()) {
-
+            const tcp = new TCP();
+            tcp.parse(ip.getPayload());
+            trans = tcp;
         } else {
             throw new Error("Unsupported net layer type");
         }
+        s.layers.push(trans);
+
 
         return s;
     }
